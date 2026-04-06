@@ -1,0 +1,10 @@
+tags = ["wallpaper"]
+# blacklist_tags = ["nsfw"]
+# min_score = 0
+# cycle_interval_seconds = 300
+# imageboard = "safebooru"  # danbooru, safebooru, gelbooru, rule34
+# rating = "safe"  # safe, questionable, explicit
+# sort_by = "random"  # random, id, score, rating, user, height, width, source, updated
+# user_id = ""  # required for gelbooru and rule34
+# api_key = ""  # required for gelbooru and rule34
+# disable_resolution_filter = false
