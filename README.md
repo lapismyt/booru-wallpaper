@@ -34,7 +34,7 @@ Supported wallpaper backends:
 - Rust and Cargo to build the project
 - internet access
 - one wallpaper backend:
-  - `wallpaper` for regular wallpaper setting, requires `feh` on `i3` and `swaybg`, not supports animated wallpaper.
+  - `wallpaper` for regular wallpaper setting, requires `feh` on i3-wm and `swaybg` on Wayland, not supports animated wallpaper.
   - `awww` for for AWWW on Wayland, supports animated wallpaper.
 - `ffmpeg` and `ffprobe` for handling `mp4`/`webm` posts
 
@@ -176,9 +176,7 @@ Default criteria:
 - `wallpaper_aspect_ratio_min = 1.6`
 - `wallpaper_aspect_ratio_max = 2.1`
 
-This is softer than the old exact `1920x1080` requirement and fits real-world wallpaper formats better.
-
-If `rotate_portrait = true`, portrait images can also pass the filter if they match the wallpaper criteria after a 90 degree clockwise rotation.
+If `rotate_portrait = true`, portrait images can also pass the filter after a 90 degree clockwise rotation. In that mode, rotated portrait images are checked against the minimum dimensions after rotation and are not required to fit the regular landscape aspect-ratio range.
 
 If `--disable-resolution-filter` is enabled, both booru-side filtering and local dimension checks are disabled.
 

@@ -611,37 +611,28 @@ fn validate_wallpaper_candidate(
         .wallpaper_aspect_ratio_max
         .unwrap_or(DEFAULT_WALLPAPER_ASPECT_RATIO_MAX);
     let aspect_ratio = width as f32 / height as f32;
+    let rotate_portrait = config.rotate_portrait.unwrap_or(false) && width < height;
 
     log::debug!(
-        "Candidate dimensions from {}: {}x{}, aspect ratio {:.3}",
+        "Candidate dimensions from {}: {}x{}, aspect ratio {:.3}, rotate portrait {}",
         source,
         width,
         height,
-        aspect_ratio
+        aspect_ratio,
+        rotate_portrait
     );
 
-    if width < min_width {
+    if !wallpaper_dimensions_match(width, height, config) {
         return Err(anyhow::anyhow!(
-            "Wallpaper width {} is below configured minimum {}",
+            "Wallpaper dimensions {}x{} (aspect ratio {:.3}) do not match the configured criteria: min {}x{}, aspect ratio [{:.3}, {:.3}], rotate_portrait={}",
             width,
-            min_width
-        ));
-    }
-
-    if height < min_height {
-        return Err(anyhow::anyhow!(
-            "Wallpaper height {} is below configured minimum {}",
             height,
-            min_height
-        ));
-    }
-
-    if aspect_ratio < aspect_ratio_min || aspect_ratio > aspect_ratio_max {
-        return Err(anyhow::anyhow!(
-            "Wallpaper aspect ratio {:.3} is outside configured range [{:.3}, {:.3}]",
             aspect_ratio,
+            min_width,
+            min_height,
             aspect_ratio_min,
-            aspect_ratio_max
+            aspect_ratio_max,
+            rotate_portrait
         ));
     }
 
@@ -674,14 +665,7 @@ fn wallpaper_dimensions_match(width: u32, height: u32, config: &BWConfig) -> boo
         aspect_ratio_max,
     ) || (config.rotate_portrait.unwrap_or(false)
         && width < height
-        && dimensions_match(
-            height,
-            width,
-            min_width,
-            min_height,
-            aspect_ratio_min,
-            aspect_ratio_max,
-        ))
+        && rotated_portrait_dimensions_match(height, width, min_width, min_height))
 }
 
 fn dimensions_match(
@@ -698,6 +682,15 @@ fn dimensions_match(
         && height >= min_height
         && aspect_ratio >= aspect_ratio_min
         && aspect_ratio <= aspect_ratio_max
+}
+
+fn rotated_portrait_dimensions_match(
+    rotated_width: u32,
+    rotated_height: u32,
+    min_width: u32,
+    min_height: u32,
+) -> bool {
+    rotated_width >= min_width && rotated_height >= min_height
 }
 
 fn should_rotate_portrait(metadata_dimensions: Option<(u32, u32)>, config: &BWConfig) -> bool {
