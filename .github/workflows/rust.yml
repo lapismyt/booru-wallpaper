@@ -1,0 +1,51 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: booru-wallpaper-linux-x86_64
+            binary_path: target/release/booru-wallpaper
+          - os: windows-latest
+            artifact_name: booru-wallpaper-windows-x86_64
+            binary_path: target/release/booru-wallpaper.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Rust compile cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-rust-cache-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-rust-cache-
+
+    - name: Build
+      run: cargo build --release --verbose
+
+    - name: Run tests
+      run: cargo test --release --verbose
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.binary_path }}
