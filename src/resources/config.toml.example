@@ -19,3 +19,4 @@ tags = ["wallpaper"]
 # animated_max_duration_seconds = 12
 # animated_fps = 10
 # animated_width = 1280
+# rotate_portrait = false

@@ -27,6 +27,7 @@ pub struct BWConfig {
     pub animated_max_duration_seconds: Option<u32>,
     pub animated_fps: Option<u32>,
     pub animated_width: Option<u32>,
+    pub rotate_portrait: Option<bool>,
 }
 
 impl Default for BWConfig {
@@ -53,6 +54,7 @@ impl Default for BWConfig {
             animated_max_duration_seconds: Default::default(),
             animated_fps: Default::default(),
             animated_width: Default::default(),
+            rotate_portrait: Default::default(),
         }
     }
 }
@@ -111,6 +113,11 @@ impl BWConfig {
                 .or(self.animated_max_duration_seconds),
             animated_fps: args.animated_fps.or(self.animated_fps),
             animated_width: args.animated_width.or(self.animated_width),
+            rotate_portrait: if args.rotate_portrait {
+                Some(true)
+            } else {
+                self.rotate_portrait
+            },
         }
     }
 }

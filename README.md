@@ -95,6 +95,12 @@ Relax wallpaper matching criteria:
 cargo run -- -t "wallpaper" --wallpaper-min-width 1366 --wallpaper-min-height 768 --wallpaper-aspect-ratio-min 1.5 --wallpaper-aspect-ratio-max 2.2
 ```
 
+Allow portrait images by rotating them clockwise:
+
+```bash
+cargo run -- -t "wallpaper" --rotate-portrait
+```
+
 Only print the selected URL:
 
 ```bash
@@ -152,6 +158,7 @@ tags = ["wallpaper"]
 # animated_max_duration_seconds = 12
 # animated_fps = 10
 # animated_width = 1280
+# rotate_portrait = false
 ```
 
 ## Wallpaper Criteria
@@ -170,6 +177,8 @@ Default criteria:
 - `wallpaper_aspect_ratio_max = 2.1`
 
 This is softer than the old exact `1920x1080` requirement and fits real-world wallpaper formats better.
+
+If `rotate_portrait = true`, portrait images can also pass the filter if they match the wallpaper criteria after a 90 degree clockwise rotation.
 
 If `--disable-resolution-filter` is enabled, both booru-side filtering and local dimension checks are disabled.
 
@@ -213,8 +222,9 @@ Animated preparation parameters:
 - `animated_max_duration_seconds`
 - `animated_fps`
 - `animated_width`
+- `rotate_portrait`
 
-These parameters control video preparation before wallpaper application. For `awww`, they affect the generated GIF. For `wallpaper`, `animated_width` currently affects the extracted frame width.
+These parameters control media preparation before wallpaper application. For `awww`, they affect the generated GIF. For `wallpaper`, `animated_width` affects the extracted frame width. If `rotate_portrait` is enabled, portrait media is rotated 90 degrees clockwise before being applied.
 
 ## CLI
 
@@ -267,6 +277,8 @@ Options:
           FPS used when preparing animated wallpapers. 10 by default
   -P, --animated-width <ANIMATED_WIDTH>
           Output width used when preparing animated wallpapers. 1280 by default
+  -L, --rotate-portrait
+          Allow portrait images and rotate them 90 degrees clockwise. False by default
   -d, --dry-run
           Dry run - only print the image URL, don't set it on the wallpaper
   -h, --help

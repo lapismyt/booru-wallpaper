@@ -173,6 +173,7 @@ async fn process_wallpaper_candidate(
     let file_path_for_check = file_path.clone();
     let content_type_for_check = content_type.clone();
     let metadata_dimensions = candidate.width.zip(candidate.height);
+    let rotate_portrait = should_rotate_portrait(metadata_dimensions, config);
     let config_for_check = config.clone();
     let validation = tokio::task::spawn_blocking(move || {
         validate_wallpaper_candidate(
@@ -199,6 +200,7 @@ async fn process_wallpaper_candidate(
             &wallpaper_setter_for_prepare,
             &file_path,
             content_type.as_deref(),
+            rotate_portrait,
             &config_for_prepare,
         )?;
         set_wallpaper(&wallpaper_setter_for_prepare, &prepared_path)
@@ -348,21 +350,31 @@ fn prepare_wallpaper_path(
     wallpaper_setter: &BWWallpaperSetter,
     path: &Path,
     content_type: Option<&str>,
+    rotate_portrait: bool,
     config: &BWConfig,
 ) -> anyhow::Result<String> {
     match wallpaper_setter {
-        BWWallpaperSetter::Wallpaper => prepare_path_for_wallpaper(path, content_type, config),
-        BWWallpaperSetter::Awww => prepare_path_for_awww(path, content_type, config),
+        BWWallpaperSetter::Wallpaper => {
+            prepare_path_for_wallpaper(path, content_type, rotate_portrait, config)
+        }
+        BWWallpaperSetter::Awww => {
+            prepare_path_for_awww(path, content_type, rotate_portrait, config)
+        }
     }
 }
 
 fn prepare_path_for_wallpaper(
     path: &Path,
     content_type: Option<&str>,
+    rotate_portrait: bool,
     config: &BWConfig,
 ) -> anyhow::Result<String> {
     match content_type {
-        Some("video/mp4") | Some("video/webm") => extract_static_frame(path, config),
+        Some("video/mp4") | Some("video/webm") => {
+            extract_static_frame(path, config, rotate_portrait)
+        }
+        Some("image/gif") if rotate_portrait => rotate_image_clockwise(path),
+        _ if rotate_portrait => rotate_image_clockwise(path),
         _ => path_to_string(path),
     }
 }
@@ -370,33 +382,39 @@ fn prepare_path_for_wallpaper(
 fn prepare_path_for_awww(
     path: &Path,
     content_type: Option<&str>,
+    rotate_portrait: bool,
     config: &BWConfig,
 ) -> anyhow::Result<String> {
     match content_type {
-        Some("video/mp4") | Some("video/webm") => convert_video_for_awww(path, config),
+        Some("video/mp4") | Some("video/webm") => {
+            convert_video_for_awww(path, config, rotate_portrait)
+        }
+        Some("image/gif") if rotate_portrait => rotate_gif_clockwise(path),
+        _ if rotate_portrait => rotate_image_clockwise(path),
         _ => path_to_string(path),
     }
 }
 
-fn convert_video_for_awww(path: &Path, config: &BWConfig) -> anyhow::Result<String> {
+fn convert_video_for_awww(
+    path: &Path,
+    config: &BWConfig,
+    rotate_portrait: bool,
+) -> anyhow::Result<String> {
     let output_path = gif_output_path(path);
-    let video_filter = format!(
-        "fps={},scale={}:-2:flags=lanczos",
-        config.animated_fps.unwrap_or(DEFAULT_ANIMATED_FPS),
-        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH)
-    );
+    let video_filter = animated_video_filter(config, rotate_portrait);
     let max_duration = config
         .animated_max_duration_seconds
         .unwrap_or(DEFAULT_ANIMATED_MAX_DURATION_SECONDS)
         .to_string();
 
     log::debug!(
-        "Converting animated wallpaper for awww: {} -> {} (max {}s, {} fps, width {})",
+        "Converting animated wallpaper for awww: {} -> {} (max {}s, {} fps, width {}, rotate {})",
         path.display(),
         output_path.display(),
         max_duration,
         config.animated_fps.unwrap_or(DEFAULT_ANIMATED_FPS),
-        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH)
+        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH),
+        rotate_portrait
     );
 
     let output = Command::new("ffmpeg")
@@ -431,18 +449,20 @@ fn convert_video_for_awww(path: &Path, config: &BWConfig) -> anyhow::Result<Stri
     path_to_string(&output_path)
 }
 
-fn extract_static_frame(path: &Path, config: &BWConfig) -> anyhow::Result<String> {
+fn extract_static_frame(
+    path: &Path,
+    config: &BWConfig,
+    rotate_portrait: bool,
+) -> anyhow::Result<String> {
     let output_path = png_output_path(path);
-    let frame_filter = format!(
-        "scale={}:-2:flags=lanczos",
-        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH)
-    );
+    let frame_filter = static_frame_filter(config, rotate_portrait);
 
     log::debug!(
-        "Extracting static frame for wallpaper backend: {} -> {} (width {})",
+        "Extracting static frame for wallpaper backend: {} -> {} (width {}, rotate {})",
         path.display(),
         output_path.display(),
-        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH)
+        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH),
+        rotate_portrait
     );
 
     let output = Command::new("ffmpeg")
@@ -486,10 +506,77 @@ fn png_output_path(path: &Path) -> PathBuf {
     output_path
 }
 
+fn rotated_png_output_path(path: &Path) -> PathBuf {
+    let mut output_path = path.to_path_buf();
+    output_path.set_file_name(format!(
+        "{}.rotated.png",
+        path.file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("wallpaper")
+    ));
+    output_path
+}
+
+fn rotated_gif_output_path(path: &Path) -> PathBuf {
+    let mut output_path = path.to_path_buf();
+    output_path.set_file_name(format!(
+        "{}.rotated.gif",
+        path.file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("wallpaper")
+    ));
+    output_path
+}
+
 fn path_to_string(path: &Path) -> anyhow::Result<String> {
     path.to_str()
         .map(ToOwned::to_owned)
         .ok_or_else(|| anyhow::anyhow!("Failed to convert path to string: {}", path.display()))
+}
+
+fn rotate_image_clockwise(path: &Path) -> anyhow::Result<String> {
+    let output_path = rotated_png_output_path(path);
+    let image = image::open(path)
+        .map_err(|e| anyhow::anyhow!("Failed to open image {}: {}", path.display(), e))?;
+    let rotated = image.rotate90();
+    rotated.save(&output_path).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to save rotated image {}: {}",
+            output_path.display(),
+            e
+        )
+    })?;
+    path_to_string(&output_path)
+}
+
+fn rotate_gif_clockwise(path: &Path) -> anyhow::Result<String> {
+    let output_path = rotated_gif_output_path(path);
+    let output = Command::new("ffmpeg")
+        .args(["-y", "-i"])
+        .arg(path)
+        .args(["-vf", "transpose=1"])
+        .arg(&output_path)
+        .output()
+        .map_err(|e| anyhow::anyhow!("Failed to execute ffmpeg for {}: {}", path.display(), e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        return Err(anyhow::anyhow!(
+            "ffmpeg failed with status {} while rotating {}. stdout: {} stderr: {}",
+            output
+                .status
+                .code()
+                .map(|code| code.to_string())
+                .unwrap_or_else(|| "terminated by signal".to_string()),
+            path.display(),
+            stdout,
+            stderr
+        ));
+    }
+
+    path_to_string(&output_path)
 }
 
 fn validate_wallpaper_candidate(
@@ -578,12 +665,77 @@ fn wallpaper_dimensions_match(width: u32, height: u32, config: &BWConfig) -> boo
     let aspect_ratio_max = config
         .wallpaper_aspect_ratio_max
         .unwrap_or(DEFAULT_WALLPAPER_ASPECT_RATIO_MAX);
+    dimensions_match(
+        width,
+        height,
+        min_width,
+        min_height,
+        aspect_ratio_min,
+        aspect_ratio_max,
+    ) || (config.rotate_portrait.unwrap_or(false)
+        && width < height
+        && dimensions_match(
+            height,
+            width,
+            min_width,
+            min_height,
+            aspect_ratio_min,
+            aspect_ratio_max,
+        ))
+}
+
+fn dimensions_match(
+    width: u32,
+    height: u32,
+    min_width: u32,
+    min_height: u32,
+    aspect_ratio_min: f32,
+    aspect_ratio_max: f32,
+) -> bool {
     let aspect_ratio = width as f32 / height as f32;
 
     width >= min_width
         && height >= min_height
         && aspect_ratio >= aspect_ratio_min
         && aspect_ratio <= aspect_ratio_max
+}
+
+fn should_rotate_portrait(metadata_dimensions: Option<(u32, u32)>, config: &BWConfig) -> bool {
+    config.rotate_portrait.unwrap_or(false)
+        && metadata_dimensions
+            .map(|(width, height)| width < height)
+            .unwrap_or(false)
+}
+
+fn animated_video_filter(config: &BWConfig, rotate_portrait: bool) -> String {
+    let mut filters = Vec::new();
+
+    if rotate_portrait {
+        filters.push("transpose=1".to_string());
+    }
+
+    filters.push(format!(
+        "fps={},scale={}:-2:flags=lanczos",
+        config.animated_fps.unwrap_or(DEFAULT_ANIMATED_FPS),
+        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH)
+    ));
+
+    filters.join(",")
+}
+
+fn static_frame_filter(config: &BWConfig, rotate_portrait: bool) -> String {
+    let mut filters = Vec::new();
+
+    if rotate_portrait {
+        filters.push("transpose=1".to_string());
+    }
+
+    filters.push(format!(
+        "scale={}:-2:flags=lanczos",
+        config.animated_width.unwrap_or(DEFAULT_ANIMATED_WIDTH)
+    ));
+
+    filters.join(",")
 }
 
 fn detect_dimensions(path: &Path, content_type: Option<&str>) -> anyhow::Result<(u32, u32)> {

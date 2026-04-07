@@ -101,6 +101,10 @@ pub struct CliArgs {
     #[arg(short = 'P', long)]
     pub animated_width: Option<u32>,
 
+    /// Allow portrait images and rotate them 90 degrees clockwise. False by default.
+    #[arg(short = 'L', long)]
+    pub rotate_portrait: bool,
+
     /// Dry run - only print the image URL, don't set it on the wallpaper.
     #[arg(short, long)]
     pub dry_run: bool,
