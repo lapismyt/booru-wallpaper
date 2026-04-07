@@ -13,7 +13,6 @@ log = "0.4.29"
 pretty_env_logger = "0.5.0"
 reqwest = { version = "0.13.2", features = ["json", "stream"] }
 serde = { version = "1.0.228", features = ["derive"] }
-tempdir = "0.3.7"
 tokio = { version = "1.51.0", features = ["full"] }
 toml = "1.1.2"
 wallpaper = { version = "3.2.0" }

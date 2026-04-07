@@ -18,6 +18,16 @@ pub fn get_default_config_path() -> PathBuf {
     config_dir.join("config.toml").to_path_buf()
 }
 
+pub fn get_default_cache_dir_path() -> PathBuf {
+    let proj_dirs = ProjectDirs::from("uno", "lapis", "booru-wallpaper")
+        .expect("Unable to get project dirs on your platform");
+
+    let cache_dir = proj_dirs.cache_dir();
+    let _ = std::fs::create_dir_all(cache_dir);
+
+    cache_dir.to_path_buf()
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum BWImageboard {
