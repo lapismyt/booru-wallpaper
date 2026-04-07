@@ -17,6 +17,5 @@ tokio = { version = "1.51.0", features = ["full"] }
 toml = "1.1.2"
 wallpaper = { version = "3.2.0" }
 
-[profile.release-lto]
-inherits = "release"
+[profile.release]
 lto = true
