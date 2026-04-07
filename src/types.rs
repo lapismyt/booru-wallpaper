@@ -100,6 +100,17 @@ pub trait TryGetUrl {
     fn try_get_url(&self) -> anyhow::Result<&str>;
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct WallpaperCandidate {
+    pub url: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
+
+pub trait TryGetDimensions {
+    fn try_get_dimensions(&self) -> anyhow::Result<(u32, u32)>;
+}
+
 impl TryGetUrl for DanbooruPost {
     fn try_get_url(&self) -> anyhow::Result<&str> {
         if let Some(url) = &self.large_file_url {
@@ -118,9 +129,21 @@ impl TryGetUrl for DanbooruPost {
     }
 }
 
+impl TryGetDimensions for DanbooruPost {
+    fn try_get_dimensions(&self) -> anyhow::Result<(u32, u32)> {
+        Ok((self.image_width, self.image_height))
+    }
+}
+
 impl TryGetUrl for GelbooruPost {
     fn try_get_url(&self) -> anyhow::Result<&str> {
         Ok(&self.file_url)
+    }
+}
+
+impl TryGetDimensions for GelbooruPost {
+    fn try_get_dimensions(&self) -> anyhow::Result<(u32, u32)> {
+        Ok((self.width, self.height))
     }
 }
 
@@ -130,8 +153,20 @@ impl TryGetUrl for Rule34Post {
     }
 }
 
+impl TryGetDimensions for Rule34Post {
+    fn try_get_dimensions(&self) -> anyhow::Result<(u32, u32)> {
+        Ok((self.width, self.height))
+    }
+}
+
 impl TryGetUrl for SafebooruPost {
     fn try_get_url(&self) -> anyhow::Result<&str> {
         Ok(&self.file_url)
+    }
+}
+
+impl TryGetDimensions for SafebooruPost {
+    fn try_get_dimensions(&self) -> anyhow::Result<(u32, u32)> {
+        Ok((self.width, self.height))
     }
 }

@@ -13,7 +13,7 @@ use crate::{
     rating::BWRatingToBooruRating,
     types::{
         BWImageboard, BWSortBy, BWWallpaperSetter, DEFAULT_IMAGEBOARD, DEFAULT_WALLPAPER_SETTER,
-        TryGetUrl,
+        TryGetDimensions, TryGetUrl, WallpaperCandidate,
     },
 };
 
@@ -61,7 +61,7 @@ pub async fn fetch_and_set_wallpaper(config: &BWConfig, dry_run: bool) -> anyhow
 }
 
 async fn fetch_and_set_wallpaper_once(config: &BWConfig, dry_run: bool) -> anyhow::Result<()> {
-    let img_urls = match config.imageboard.as_ref().unwrap_or(&DEFAULT_IMAGEBOARD) {
+    let candidates = match config.imageboard.as_ref().unwrap_or(&DEFAULT_IMAGEBOARD) {
         BWImageboard::Gelbooru => fetch_wallpapers::<GelbooruClient>(config).await?,
         BWImageboard::Rule34 => fetch_wallpapers::<Rule34Client>(config).await?,
         BWImageboard::Safebooru => fetch_wallpapers::<SafebooruClient>(config).await?,
@@ -84,20 +84,20 @@ async fn fetch_and_set_wallpaper_once(config: &BWConfig, dry_run: bool) -> anyho
         .unwrap_or(DEFAULT_WALLPAPER_SETTER);
     let mut last_candidate_error = None;
 
-    for img_url in img_urls {
+    for candidate in candidates {
         match process_wallpaper_candidate(
             config,
             &client,
             referer,
             &wallpaper_setter,
-            &img_url,
+            &candidate,
             dry_run,
         )
         .await
         {
             Ok(()) => return Ok(()),
             Err(error) => {
-                log::debug!("Skipping candidate {}: {}", img_url, error);
+                log::debug!("Skipping candidate {}: {}", candidate.url, error);
                 last_candidate_error = Some(error);
             }
         }
@@ -116,13 +116,13 @@ async fn process_wallpaper_candidate(
     client: &reqwest::Client,
     referer: &str,
     wallpaper_setter: &BWWallpaperSetter,
-    img_url: &str,
+    candidate: &WallpaperCandidate,
     dry_run: bool,
 ) -> anyhow::Result<()> {
-    log::debug!("Downloading wallpaper candidate from: {}", img_url);
+    log::debug!("Downloading wallpaper candidate from: {}", candidate.url);
 
     let response = client
-        .get(img_url)
+        .get(&candidate.url)
         .header("Referer", referer)
         .send()
         .await
@@ -152,7 +152,8 @@ async fn process_wallpaper_candidate(
         .map_err(|e| anyhow::anyhow!("Failed to read wallpaper bytes: {}", e))?;
 
     let tmp_dir = TempDir::new("booru-wallpaper")?;
-    let file_name = img_url
+    let file_name = candidate
+        .url
         .split('/')
         .last()
         .filter(|s| !s.is_empty())
@@ -171,11 +172,13 @@ async fn process_wallpaper_candidate(
 
     let file_path_for_check = file_path.clone();
     let content_type_for_check = content_type.clone();
+    let metadata_dimensions = candidate.width.zip(candidate.height);
     let config_for_check = config.clone();
     let validation = tokio::task::spawn_blocking(move || {
         validate_wallpaper_candidate(
             &file_path_for_check,
             content_type_for_check.as_deref(),
+            metadata_dimensions,
             &config_for_check,
         )
     })
@@ -185,7 +188,7 @@ async fn process_wallpaper_candidate(
     validation?;
 
     if dry_run {
-        println!("{}", img_url);
+        println!("{}", candidate.url);
         return Ok(());
     }
 
@@ -208,10 +211,10 @@ async fn process_wallpaper_candidate(
     Ok(())
 }
 
-async fn fetch_wallpapers<C>(config: &BWConfig) -> anyhow::Result<Vec<String>>
+async fn fetch_wallpapers<C>(config: &BWConfig) -> anyhow::Result<Vec<WallpaperCandidate>>
 where
     C: Client + BWRatingToBooruRating,
-    C::Post: TryGetUrl,
+    C::Post: TryGetUrl + TryGetDimensions,
 {
     let mut builder = C::builder();
 
@@ -278,25 +281,51 @@ where
 
     let res = builder.limit(batch_size).build().get().await?;
 
-    let urls = res
+    let candidates = res
         .into_iter()
-        .filter_map(|post| match post.try_get_url() {
-            Ok(url) => Some(url.to_string()),
-            Err(error) => {
+        .filter_map(|post| match (post.try_get_url(), post.try_get_dimensions()) {
+            (Ok(url), Ok((width, height))) => {
+                if wallpaper_dimensions_match(width, height, config) {
+                    Some(WallpaperCandidate {
+                        url: url.to_string(),
+                        width: Some(width),
+                        height: Some(height),
+                    })
+                } else {
+                    log::debug!(
+                        "Skipping post by metadata dimensions: {}x{} does not match wallpaper criteria",
+                        width,
+                        height
+                    );
+                    None
+                }
+            }
+            (Ok(url), Err(error)) => {
+                log::debug!(
+                    "Using post without metadata dimensions, fallback validation will happen after download: {}",
+                    error
+                );
+                Some(WallpaperCandidate {
+                    url: url.to_string(),
+                    width: None,
+                    height: None,
+                })
+            }
+            (Err(error), _) => {
                 log::debug!("Skipping post without usable URL: {}", error);
                 None
             }
         })
         .collect::<Vec<_>>();
 
-    if urls.is_empty() {
+    if candidates.is_empty() {
         return Err(anyhow::anyhow!(
             "Unable to find a wallpaper in the fetched batch of {} posts",
             batch_size
         ));
     }
 
-    Ok(urls)
+    Ok(candidates)
 }
 
 fn apply_sorting<C: Client>(sort_by: &BWSortBy, builder: ClientBuilder<C>) -> ClientBuilder<C> {
@@ -466,13 +495,22 @@ fn path_to_string(path: &Path) -> anyhow::Result<String> {
 fn validate_wallpaper_candidate(
     path: &Path,
     content_type: Option<&str>,
+    metadata_dimensions: Option<(u32, u32)>,
     config: &BWConfig,
 ) -> anyhow::Result<()> {
     if config.disable_resolution_filter.unwrap_or(false) {
         return Ok(());
     }
 
-    let (width, height) = detect_dimensions(path, content_type)?;
+    let (width, height) = match metadata_dimensions {
+        Some(dimensions) => dimensions,
+        None => detect_dimensions(path, content_type)?,
+    };
+    let source = if metadata_dimensions.is_some() {
+        "post metadata"
+    } else {
+        "downloaded file"
+    };
     let min_width = config
         .wallpaper_min_width
         .unwrap_or(DEFAULT_WALLPAPER_MIN_WIDTH);
@@ -488,7 +526,8 @@ fn validate_wallpaper_candidate(
     let aspect_ratio = width as f32 / height as f32;
 
     log::debug!(
-        "Candidate dimensions: {}x{}, aspect ratio {:.3}",
+        "Candidate dimensions from {}: {}x{}, aspect ratio {:.3}",
+        source,
         width,
         height,
         aspect_ratio
@@ -520,6 +559,31 @@ fn validate_wallpaper_candidate(
     }
 
     Ok(())
+}
+
+fn wallpaper_dimensions_match(width: u32, height: u32, config: &BWConfig) -> bool {
+    if config.disable_resolution_filter.unwrap_or(false) {
+        return true;
+    }
+
+    let min_width = config
+        .wallpaper_min_width
+        .unwrap_or(DEFAULT_WALLPAPER_MIN_WIDTH);
+    let min_height = config
+        .wallpaper_min_height
+        .unwrap_or(DEFAULT_WALLPAPER_MIN_HEIGHT);
+    let aspect_ratio_min = config
+        .wallpaper_aspect_ratio_min
+        .unwrap_or(DEFAULT_WALLPAPER_ASPECT_RATIO_MIN);
+    let aspect_ratio_max = config
+        .wallpaper_aspect_ratio_max
+        .unwrap_or(DEFAULT_WALLPAPER_ASPECT_RATIO_MAX);
+    let aspect_ratio = width as f32 / height as f32;
+
+    width >= min_width
+        && height >= min_height
+        && aspect_ratio >= aspect_ratio_min
+        && aspect_ratio <= aspect_ratio_max
 }
 
 fn detect_dimensions(path: &Path, content_type: Option<&str>) -> anyhow::Result<(u32, u32)> {

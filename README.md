@@ -159,7 +159,8 @@ tags = ["wallpaper"]
 If `disable_resolution_filter = false`, the application uses two filtering stages:
 
 - for `gelbooru`, `rule34`, and `safebooru`, it adds `width:>=...` and `height:>=...` to the booru query
-- after download, it validates the file locally by dimensions and aspect ratio
+- when the API response includes post dimensions, candidates are filtered by post metadata before download
+- if dimensions are not available in metadata, the downloaded file is validated locally as a fallback
 
 Default criteria:
 
