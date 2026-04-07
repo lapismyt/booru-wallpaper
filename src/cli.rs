@@ -1,9 +1,11 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 
 use crate::{
     config::BWConfig,
     fetch::fetch_and_set_wallpaper,
-    types::{BWImageboard, BWRating, BWSortBy, DEFAULT_CONFIG_PATH},
+    types::{BWImageboard, BWRating, BWSortBy, get_default_config_path},
 };
 
 #[derive(Parser, Debug)]
@@ -47,7 +49,7 @@ pub struct CliArgs {
 
     /// Path to the base config file.
     /// Can be disabled with "none" to use only CLI args.
-    #[arg(default_value = DEFAULT_CONFIG_PATH)]
+    #[arg(default_value = "default")]
     pub config: Option<String>,
 
     /// Disable resolution filtering tags.
@@ -67,16 +69,34 @@ pub async fn run() -> anyhow::Result<()> {
         Some(path) => {
             if path.is_empty() {
                 BWConfig::default()
-            } else if path == "none" {
+            } else if path.to_lowercase() == "none" {
                 BWConfig::default()
             } else {
-                if !path.ends_with(".toml") {
+                let actual_path = if path.to_lowercase() == "default" {
+                    get_default_config_path()
+                } else {
+                    PathBuf::from(path)
+                };
+
+                log::debug!("config path: {:?}", actual_path);
+
+                if actual_path
+                    .extension()
+                    .ok_or(anyhow::anyhow!("Config file must be a .toml file"))?
+                    != "toml"
+                {
                     return Err(anyhow::anyhow!("Config file must be a .toml file"));
                 }
-                let _config = std::fs::read_to_string(&path)
-                    .map_err(|e| anyhow::anyhow!("Unable to read {}: {}", &path, e))?;
-                toml::from_str(&_config)
-                    .map_err(|e| anyhow::anyhow!("Unable to parse config file {}: {}", &path, e))?
+                let _config = std::fs::read_to_string(&actual_path).map_err(|e| {
+                    anyhow::anyhow!("Unable to read {}: {}", &actual_path.display(), e)
+                })?;
+                toml::from_str(&_config).map_err(|e| {
+                    anyhow::anyhow!(
+                        "Unable to parse config file {}: {}",
+                        &actual_path.display(),
+                        e
+                    )
+                })?
             }
         }
     };

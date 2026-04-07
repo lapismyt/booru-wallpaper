@@ -79,13 +79,18 @@ pub async fn fetch_and_set_wallpaper(config: &BWConfig, dry_run: bool) -> anyhow
             .ok_or_else(|| anyhow::anyhow!("Failed to convert path to string"))?
             .to_string();
 
+        let path_str_c = path_str.clone();
+
         tokio::task::spawn_blocking(move || {
-            log::debug!("Setting wallpaper from: {}", path_str);
-            wallpaper::set_from_path(&path_str)
-                .map_err(|e| anyhow::anyhow!("Failed to set wallpaper (path: {}): {}", path_str, e))
+            log::debug!("Setting wallpaper from: {}", &path_str_c);
+            wallpaper::set_from_path(&path_str_c).map_err(|e| {
+                anyhow::anyhow!("Failed to set wallpaper (path: {}): {}", &path_str_c, e)
+            })
         })
         .await
         .map_err(|e| anyhow::anyhow!("Task join error: {}", e))??;
+
+        tokio::fs::remove_dir_all(path_str).await?;
 
         Ok(())
     }

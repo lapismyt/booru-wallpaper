@@ -1,15 +1,23 @@
+use std::path::PathBuf;
+
 use booru_rs::{
     danbooru::DanbooruPost, gelbooru::GelbooruPost, rule34::Rule34Post, safebooru::SafebooruPost,
 };
+use directories::ProjectDirs;
 
 pub const DEFAULT_IMAGEBOARD: BWImageboard = BWImageboard::Safebooru;
 pub const WIDTH: u32 = 1920;
 pub const HEIGHT: u32 = 1080;
-pub const DEFAULT_CONFIG_PATH: &str = if cfg!(target_os = "windows") {
-    todo!()
-} else {
-    "~/.config/booru-wallpaper/config.toml"
-};
+
+pub fn get_default_config_path() -> PathBuf {
+    let proj_dirs = ProjectDirs::from("uno", "lapis", "booru-wallpaper")
+        .expect("Unable to get project dirs on your platform");
+
+    let config_dir = proj_dirs.config_dir();
+    let _ = std::fs::create_dir_all(config_dir);
+
+    config_dir.join("config.toml").to_path_buf()
+}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
