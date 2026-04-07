@@ -6,8 +6,7 @@ use booru_rs::{
 use directories::ProjectDirs;
 
 pub const DEFAULT_IMAGEBOARD: BWImageboard = BWImageboard::Safebooru;
-pub const WIDTH: u32 = 1920;
-pub const HEIGHT: u32 = 1080;
+pub const DEFAULT_WALLPAPER_SETTER: BWWallpaperSetter = BWWallpaperSetter::Wallpaper;
 
 pub fn get_default_config_path() -> PathBuf {
     let proj_dirs = ProjectDirs::from("uno", "lapis", "booru-wallpaper")
@@ -31,6 +30,19 @@ pub enum BWImageboard {
 impl Default for BWImageboard {
     fn default() -> Self {
         Self::Safebooru
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum BWWallpaperSetter {
+    Wallpaper,
+    Awww,
+}
+
+impl Default for BWWallpaperSetter {
+    fn default() -> Self {
+        Self::Wallpaper
     }
 }
 
