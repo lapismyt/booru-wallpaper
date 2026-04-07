@@ -1,5 +1,5 @@
 tags = ["wallpaper"]
-# blacklist_tags = ["nsfw"]
+# blacklist_tags = []
 # min_score = 0
 # cycle_interval_seconds = 300
 # imageboard = "safebooru"  # danbooru, safebooru, gelbooru, rule34

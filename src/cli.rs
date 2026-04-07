@@ -89,7 +89,20 @@ pub async fn run() -> anyhow::Result<()> {
                     return Err(anyhow::anyhow!("Config file must be a .toml file"));
                 }
 
-                let _config = std::fs::read_to_string(&actual_path).map_err(|e| {
+                if !actual_path.exists() {
+                    tokio::fs::write(&actual_path, include_str!("resources/config.toml.example"))
+                        .await
+                        .map_err(|e| {
+                            anyhow::anyhow!(
+                                "Failed to create template config in {}: {}",
+                                &actual_path.display(),
+                                e
+                            )
+                        })?;
+                    log::info!("Config template is saved to {}", &actual_path.display())
+                };
+
+                let _config = tokio::fs::read_to_string(&actual_path).await.map_err(|e| {
                     anyhow::anyhow!("Unable to read {}: {}", &actual_path.display(), e)
                 })?;
                 toml::from_str(&_config).map_err(|e| {
