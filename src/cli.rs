@@ -49,6 +49,7 @@ pub struct CliArgs {
 
     /// Path to the base config file.
     /// Can be disabled with "none" to use only CLI args.
+    /// By default, uses ~/.config on UNIX and AppData on Windows.
     #[arg(default_value = "default")]
     pub config: Option<String>,
 
@@ -87,6 +88,7 @@ pub async fn run() -> anyhow::Result<()> {
                 {
                     return Err(anyhow::anyhow!("Config file must be a .toml file"));
                 }
+
                 let _config = std::fs::read_to_string(&actual_path).map_err(|e| {
                     anyhow::anyhow!("Unable to read {}: {}", &actual_path.display(), e)
                 })?;
