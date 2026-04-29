@@ -35,7 +35,7 @@ Supported wallpaper backends:
 - internet access
 - one wallpaper backend:
   - `wallpaper` for regular wallpaper setting, requires `feh` on i3-wm and `swaybg` on Wayland, not supports animated wallpaper.
-  - `awww` for for AWWW on Wayland, supports animated wallpaper.
+  - `awww` for AWWW on Wayland, supports animated wallpaper.
 - `ffmpeg` and `ffprobe` for handling `mp4`/`webm` posts
 
 `ffmpeg` is used as follows:
