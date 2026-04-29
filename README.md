@@ -68,49 +68,49 @@ cargo run -- --help
 Set a random safe wallpaper once:
 
 ```bash
-cargo run -- -t "wallpaper landscape"
+booru-wallpaper -t "wallpaper landscape"
 ```
 
 Use `awww`:
 
 ```bash
-cargo run -- -t "animated wallpaper" --wallpaper-setter awww
+booru-wallpaper -t "animated wallpaper" --wallpaper-setter awww
 ```
 
 Retry up to 5 times after the first failure:
 
 ```bash
-cargo run -- -t "wallpaper" --max-retries 5
+booru-wallpaper -t "wallpaper" --max-retries 5
 ```
 
 Fetch a batch of 100 posts per attempt and wait 3 seconds between retries:
 
 ```bash
-cargo run -- -t "wallpaper" --batch-size 100 --retry-interval-seconds 3
+booru-wallpaper -t "wallpaper" --batch-size 100 --retry-interval-seconds 3
 ```
 
 Relax wallpaper matching criteria:
 
 ```bash
-cargo run -- -t "wallpaper" --wallpaper-min-width 1366 --wallpaper-min-height 768 --wallpaper-aspect-ratio-min 1.5 --wallpaper-aspect-ratio-max 2.2
+booru-wallpaper -t "wallpaper" --wallpaper-min-width 1366 --wallpaper-min-height 768 --wallpaper-aspect-ratio-min 1.5 --wallpaper-aspect-ratio-max 2.2
 ```
 
 Allow portrait images by rotating them clockwise:
 
 ```bash
-cargo run -- -t "wallpaper" --rotate-portrait
+booru-wallpaper -t "wallpaper" --rotate-portrait
 ```
 
 Only print the selected URL:
 
 ```bash
-cargo run -- -t "wallpaper" --dry-run
+booru-wallpaper -t "wallpaper" --dry-run
 ```
 
 Rotate wallpaper every 5 minutes:
 
 ```bash
-cargo run -- -t "wallpaper" -c 300
+booru-wallpaper -t "wallpaper" -c 300
 ```
 
 ## Configuration
